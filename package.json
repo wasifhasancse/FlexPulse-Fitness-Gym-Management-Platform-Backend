@@ -1,4 +1,11 @@
 {
+  "name": "flex_pulse_backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node index.js",
+    "start": "node index.js"
+  },
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
