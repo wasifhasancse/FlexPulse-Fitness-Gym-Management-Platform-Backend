@@ -335,6 +335,26 @@ const run = async () => {
       res.status(200).json({ isBooked: !!existing });
     });
 
+    // add or remove a class from favorites
+    app.post("/api/favorites", async (req, res) => {
+      const { userId, classId } = req.body;
+      const existing = await favoriteCollection.findOne({ userId, classId });
+      if (existing) {
+        await favoriteCollection.deleteOne({ userId, classId });
+        res
+          .status(200)
+          .json({ isFavorite: false, message: "Removed this class from favorites" });
+      } else {
+        await favoriteCollection.insertOne({
+          ...req.body,
+          createdAt: new Date(),
+        });
+        res
+          .status(200)
+          .json({ isFavorite: true, message: "Added this class to favorites" });
+      }
+    });
+
     // get all favorite classes by user id
     app.get("/api/favorites", async (req, res) => {
       const { userId } = req.query;
