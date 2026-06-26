@@ -113,6 +113,12 @@ const run = async () => {
       res.json({ msg: "Subscription added successfully!" });
     });
 
+    // get all forum posts
+    app.get("/api/forumPost", async (req, res) => {
+      const result = await forumPostCollection.find().toArray();
+      res.send(result);
+    });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
