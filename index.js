@@ -82,6 +82,17 @@ const run = async () => {
       res.send(result);
     });
 
+    // update a class by class id
+    app.patch("/api/all-classes/:id", async (req, res) => {
+      const { id } = req.params;
+      const updatedData = req.body;
+      const result = await classCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedData },
+      );
+      res.send(result);
+    });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
