@@ -370,6 +370,13 @@ const run = async () => {
       res.status(200).json(favorites);
     });
 
+    // check if a class is in user's favorites
+     app.get("/api/favorites/check", async (req, res) => {
+       const { userId, classId } = req.query;
+       const existing = await favoriteCollection.findOne({ userId, classId });
+       res.status(200).json({ isFavorite: !!existing });
+     });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
