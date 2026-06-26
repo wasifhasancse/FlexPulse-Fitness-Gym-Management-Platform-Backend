@@ -215,6 +215,28 @@ const run = async () => {
       res.json({ success: true, content });
     });
 
+    // delete a comment from a forum post
+    app.delete("/api/forum/comment/:postId/:commentId", async (req, res) => {
+      const { postId, commentId } = req.params;
+      const { userId } = req.body;
+
+      const post = await forumPostCollection.findOne({
+        _id: new ObjectId(postId),
+      });
+      const comment = post.comments.find((c) => c._id.toString() === commentId);
+
+      if (comment.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      await forumPostCollection.updateOne(
+        { _id: new ObjectId(postId) },
+        { $pull: { comments: { _id: new ObjectId(commentId) } } },
+      );
+
+      res.json({ success: true });
+    });
+
     // delete a forum post by forumPost id
     app.delete("/api/my-post/:id", async (req, res) => {
       const { id } = req.params;
