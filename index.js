@@ -119,6 +119,14 @@ const run = async () => {
       res.send(result);
     });
 
+    // get forum posts by user id
+    app.get("/api/my-forumPost", async (req, res) => {
+      const { userId } = req.query;
+      const query = { userId: userId };
+      const result = await forumPostCollection.find(query).toArray();
+      res.send(result);
+    });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
