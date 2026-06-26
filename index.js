@@ -55,6 +55,15 @@ const memberVerify = async (req, res, next) => {
   next();
 };
 
+// Verify trainer role middleware
+const trainerVerify = async (req, res, next) => {
+  const user = req.user;
+  if (user.role !== "trainer") {
+    return res.status(403).json({ msg: "Forbidden" });
+  }
+  next();
+};
+
 const run = async () => {
   try {
     // await client.connect();
