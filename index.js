@@ -25,6 +25,26 @@ const JWKS = createRemoteJWKSet(
   new URL(`${process.env.NEXT_CLIENT_URL}/api/auth/jwks`),
 );
 
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer")) {
+    return res.status(401).json({ msg: "Unauthorize" });
+  }
+  const token = authHeader?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ msg: "Unauthorize" });
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    next();
+  } catch (error) {
+    console.log(error);
+    return res.status(401).json({ msg: "Unauthorize" });
+  }
+};
+
 const run = async () => {
   try {
     // await client.connect();
