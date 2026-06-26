@@ -371,11 +371,23 @@ const run = async () => {
     });
 
     // check if a class is in user's favorites
-     app.get("/api/favorites/check", async (req, res) => {
-       const { userId, classId } = req.query;
-       const existing = await favoriteCollection.findOne({ userId, classId });
-       res.status(200).json({ isFavorite: !!existing });
-     });
+    app.get("/api/favorites/check", async (req, res) => {
+      const { userId, classId } = req.query;
+      const existing = await favoriteCollection.findOne({ userId, classId });
+      res.status(200).json({ isFavorite: !!existing });
+    });
+
+    // get a trainer application by user id
+    app.get("/api/trainerApplication", async (req, res) => {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({
+          message: "userId is required",
+        });
+      }
+      const result = await trainerApplicationCollection.findOne({ userId });
+      res.json(result || {});
+    });
 
     // await client.db("admin").command({ ping: 1 });
     console.log(
