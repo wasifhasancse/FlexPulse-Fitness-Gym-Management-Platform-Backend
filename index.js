@@ -63,6 +63,14 @@ const run = async () => {
       res.send(result || {});
     });
 
+    // get a single trainer's classes by trainer id
+    app.get("/api/getmyclasses", async (req, res) => {
+      const { trainerId } = req.query;
+      const query = { authorId: trainerId };
+      const result = await classCollection.find(query).toArray();
+      res.send(result || {});
+    });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
