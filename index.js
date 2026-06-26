@@ -226,7 +226,7 @@ const run = async () => {
       const comment = post.comments.find((c) => c._id.toString() === commentId);
 
       if (comment.userId !== userId) {
-        return res.status(403).json({ error: "Unauthorized" });
+        return res.status(403).json({ error: "Unauthorized!" });
       }
 
       await forumPostCollection.updateOne(
@@ -235,6 +235,38 @@ const run = async () => {
       );
 
       res.json({ success: true });
+    });
+
+    // like or remove like to a comment in a forum post
+    app.post("/api/forum/comment/like", async (req, res) => {
+      const { postId, commentId, userId } = req.body;
+
+      const post = await forumPostCollection.findOne({
+        _id: new ObjectId(postId),
+      });
+      const comment = post.comments.find((comment) => comment._id.toString() === commentId);
+      const likes = comment.likes || [];
+      const alreadyLiked = likes.includes(userId);
+
+      if (alreadyLiked) {
+        await forumPostCollection.updateOne(
+          {
+            _id: new ObjectId(postId),
+            "comments._id": new ObjectId(commentId),
+          },
+          { $pull: { "comments.$.likes": userId } },
+        );
+        res.json({ liked: false, likeCount: likes.length - 1 });
+      } else {
+        await forumPostCollection.updateOne(
+          {
+            _id: new ObjectId(postId),
+            "comments._id": new ObjectId(commentId),
+          },
+          { $push: { "comments.$.likes": userId } },
+        );
+        res.json({ liked: true, likeCount: likes.length + 1 });
+      }
     });
 
     // delete a forum post by forumPost id
