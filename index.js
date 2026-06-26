@@ -171,6 +171,28 @@ const run = async () => {
       }
     });
 
+    // add a comment to a forum post
+    app.post("/api/forum/comment", async (req, res) => {
+      const { postId, userId, userName, userImage, userRole, content } =
+        req.body;
+      const comment = {
+        _id: new ObjectId(),
+        userId,
+        userName,
+        userImage: userImage || null,
+        userRole,
+        content,
+        likes: [],
+        replies: [],
+        createdAt: new Date(),
+      };
+      await forumPostCollection.updateOne(
+        { _id: new ObjectId(postId) },
+        { $push: { comments: comment } },
+      );
+      res.json({ success: true, comment });
+    });
+
     // delete a forum post by forumPost id
     app.delete("/api/my-post/:id", async (req, res) => {
       const { id } = req.params;
