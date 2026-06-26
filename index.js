@@ -146,6 +146,31 @@ const run = async () => {
       res.send(result);
     });
 
+    // like or remove like to a forum post
+    app.post("/api/forum/like", async (req, res) => {
+      const { postId, userId } = req.body;
+      const post = await forumPostCollection.findOne({
+        _id: new ObjectId(postId),
+      });
+
+      const likes = post.likes || [];
+      const alreadyLiked = likes.includes(userId);
+
+      if (alreadyLiked) {
+        await forumPostCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          { $pull: { likes: userId } },
+        );
+        res.json({ liked: false, likeCount: likes.length - 1 });
+      } else {
+        await forumPostCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          { $push: { likes: userId } },
+        );
+        res.json({ liked: true, likeCount: likes.length + 1 });
+      }
+    });
+
     // delete a forum post by forumPost id
     app.delete("/api/my-post/:id", async (req, res) => {
       const { id } = req.params;
