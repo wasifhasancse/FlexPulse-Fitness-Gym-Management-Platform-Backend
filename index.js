@@ -163,6 +163,14 @@ const run = async () => {
       res.send(result);
     });
 
+    // check if a user has booked a class
+    app.get("/api/checkBooking", async (req, res) => {
+      const { userId, classId } = req.query;
+      const existing = await bookingClassCollection.findOne({ userId, classId });
+      res.status(200).json({ isBooked: !!existing });
+    });
+
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
