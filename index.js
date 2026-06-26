@@ -25,6 +25,7 @@ const JWKS = createRemoteJWKSet(
   new URL(`${process.env.NEXT_CLIENT_URL}/api/auth/jwks`),
 );
 
+// Verify JWT token middleware
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer")) {
@@ -43,6 +44,15 @@ const verifyToken = async (req, res, next) => {
     console.log(error);
     return res.status(401).json({ msg: "Unauthorize" });
   }
+};
+
+// Verify member role middleware
+const memberVerify = async (req, res, next) => {
+  const user = req.user;
+  if (user.role !== "member") {
+    return res.status(403).json({ msg: "Forbidden" });
+  }
+  next();
 };
 
 const run = async () => {
@@ -403,15 +413,15 @@ const run = async () => {
     });
 
     // add a new trainer application
-app.post("/api/trainer-application", async (req, res) => {
-  const { userId } = req.body;
-  const existing = await trainerApplicationCollection.findOne({ userId });
-  if (existing) {
-    return res.status(400).json({ error: "Already applied!" });
-  }
-  const result = await trainerApplicationCollection.insertOne(req.body);
-  res.json(result);
-});
+    app.post("/api/trainer-application", async (req, res) => {
+      const { userId } = req.body;
+      const existing = await trainerApplicationCollection.findOne({ userId });
+      if (existing) {
+        return res.status(400).json({ error: "Already applied!" });
+      }
+      const result = await trainerApplicationCollection.insertOne(req.body);
+      res.json(result);
+    });
 
     // get a trainer application by user id
     app.get("/api/trainer-application", async (req, res) => {
