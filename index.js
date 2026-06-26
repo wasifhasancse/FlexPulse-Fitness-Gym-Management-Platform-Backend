@@ -29,8 +29,15 @@ const run = async () => {
     const bookClassCollection = database.collection("bookClasses");
     const favoriteCollection = database.collection("favoriteClasses");
     const forumPostCollection = database.collection("forumPost");
-    const trainerApplicationCollection = database.collection("trainerApplications");
+    const trainerApplicationCollection = database.collection(
+      "trainerApplications",
+    );
     const userCollection = database.collection("user");
+
+    app.get("/api/all-users", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
 
     // await client.db("admin").command({ ping: 1 });
     console.log(
