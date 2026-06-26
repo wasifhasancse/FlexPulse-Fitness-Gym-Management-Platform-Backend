@@ -26,7 +26,7 @@ const run = async () => {
     const database = client.db("flex_pulse");
     const classCollection = database.collection("allClasses");
     const subscriptionsCollection = database.collection("subscriptions");
-    const bookClassCollection = database.collection("bookClasses");
+    const bookingClassCollection = database.collection("bookingClasses");
     const favoriteCollection = database.collection("favoriteClasses");
     const forumPostCollection = database.collection("forumPost");
     const trainerApplicationCollection = database.collection(
@@ -152,6 +152,14 @@ const run = async () => {
       const result = await forumPostCollection.deleteOne({
         _id: new ObjectId(id),
       });
+      res.send(result);
+    });
+
+    // get all bookings by user id
+    app.get("/api/getbookings", async (req, res) => {
+      const { userId } = req.query;
+      const query = { userId: userId };
+      const result = await bookingClassCollection.find(query).toArray();
       res.send(result);
     });
 
