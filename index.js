@@ -73,6 +73,16 @@ const adminVerify = async (req, res, next) => {
   next();
 };
 
+// Verify admin or trainer role middleware
+const adminOrTrainerVerify = async (req, res, next) => {
+  const user = req.user;
+  if (user.role !== "admin" && user.role !== "trainer") {
+    return res.status(403).json({ msg: "Forbidden" });
+  }
+  next();
+};
+
+
 const run = async () => {
   try {
     // await client.connect();
