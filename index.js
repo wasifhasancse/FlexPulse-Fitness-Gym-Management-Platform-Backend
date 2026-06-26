@@ -100,6 +100,19 @@ const run = async () => {
       res.send(result);
     });
 
+    //  add a new subscription
+    app.post("/api/subscription", async (req, res) => {
+      const { sessionId, userId, priceId } = req.body;
+      const isExist = await subscriptionsCollection.findOne({ sessionId });
+      if (isExist) return res.json({ msg: "Subscription already exists!" });
+      await subscriptionsCollection.insertOne({ sessionId, userId, priceId });
+      await userCollection.updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { plan: "pro" } },
+      );
+      res.json({ msg: "Subscription added successfully!" });
+    });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
