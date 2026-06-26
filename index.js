@@ -113,6 +113,17 @@ const run = async () => {
       res.json({ msg: "Subscription added successfully!" });
     });
 
+    // add a new forum post
+    app.post("/api/forumPost", async (req, res) => {
+      const newPost = {
+        ...req.body,
+        createdAt: new Date(),
+        status: "pending",
+      };
+      const result = await forumPostCollection.insertOne(newPost);
+      res.status(200).json(result);
+    });
+
     // get all forum posts
     app.get("/api/forumPost", async (req, res) => {
       const result = await forumPostCollection.find().toArray();
@@ -128,12 +139,12 @@ const run = async () => {
     });
 
     // get a single forum post by forumPost id
-     app.get("/api/forumPost/:id", async (req, res) => {
-       const id = req.params.id;
-       const query = { _id: new ObjectId(id) };
-       const result = await forumPostCollection.findOne(query);
-       res.send(result);
-     });
+    app.get("/api/forumPost/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await forumPostCollection.findOne(query);
+      res.send(result);
+    });
 
     // await client.db("admin").command({ ping: 1 });
     console.log(
