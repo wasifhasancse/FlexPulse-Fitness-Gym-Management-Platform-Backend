@@ -244,7 +244,9 @@ const run = async () => {
       const post = await forumPostCollection.findOne({
         _id: new ObjectId(postId),
       });
-      const comment = post.comments.find((comment) => comment._id.toString() === commentId);
+      const comment = post.comments.find(
+        (comment) => comment._id.toString() === commentId,
+      );
       const likes = comment.likes || [];
       const alreadyLiked = likes.includes(userId);
 
@@ -267,6 +269,37 @@ const run = async () => {
         );
         res.json({ liked: true, likeCount: likes.length + 1 });
       }
+    });
+
+    // add a reply to a comment in a forum post
+    app.post("/api/forum/reply", async (req, res) => {
+      const {
+        postId,
+        commentId,
+        userId,
+        userName,
+        userImage,
+        userRole,
+        content,
+      } = req.body;
+
+      const reply = {
+        _id: new ObjectId(),
+        userId,
+        userName,
+        userImage: userImage || null,
+        userRole,
+        content,
+        likes: [],
+        createdAt: new Date(),
+      };
+
+      await forumPostCollection.updateOne(
+        { _id: new ObjectId(postId), "comments._id": new ObjectId(commentId) },
+        { $push: { "comments.$.replies": reply } },
+      );
+
+      res.json({ success: true, reply });
     });
 
     // delete a forum post by forumPost id
