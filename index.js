@@ -378,15 +378,22 @@ const run = async () => {
     });
 
     // get a trainer application by user id
-    app.get("/api/trainerApplication", async (req, res) => {
+    app.get("/api/trainer-application", async (req, res) => {
       const { userId } = req.query;
       if (!userId) {
         return res.status(400).json({
-          message: "userId is required",
+          message: "Missing userId in query parameters",
         });
       }
       const result = await trainerApplicationCollection.findOne({ userId });
       res.json(result || {});
+    });
+
+    // check if a user has applied for trainer application
+    app.get("/api/trainer-application/check", async (req, res) => {
+      const { userId } = req.query;
+      const existing = await trainerApplicationCollection.findOne({ userId });
+      res.json({ hasApplied: !!existing, status: existing?.status || null });
     });
 
     // await client.db("admin").command({ ping: 1 });
