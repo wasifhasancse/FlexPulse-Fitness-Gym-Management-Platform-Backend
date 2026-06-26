@@ -377,6 +377,17 @@ const run = async () => {
       res.status(200).json({ isFavorite: !!existing });
     });
 
+    // add a new trainer application
+app.post("/api/trainer-application", async (req, res) => {
+  const { userId } = req.body;
+  const existing = await trainerApplicationCollection.findOne({ userId });
+  if (existing) {
+    return res.status(400).json({ error: "Already applied!" });
+  }
+  const result = await trainerApplicationCollection.insertOne(req.body);
+  res.json(result);
+});
+
     // get a trainer application by user id
     app.get("/api/trainer-application", async (req, res) => {
       const { userId } = req.query;
