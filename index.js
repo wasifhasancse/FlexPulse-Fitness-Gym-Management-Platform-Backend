@@ -335,15 +335,16 @@ const run = async () => {
       res.status(200).json({ isBooked: !!existing });
     });
 
-    // add or remove a class from favorites
+    // add or remove toggle a class from favorites
     app.post("/api/favorites", async (req, res) => {
       const { userId, classId } = req.body;
       const existing = await favoriteCollection.findOne({ userId, classId });
       if (existing) {
         await favoriteCollection.deleteOne({ userId, classId });
-        res
-          .status(200)
-          .json({ isFavorite: false, message: "Removed this class from favorites" });
+        res.status(200).json({
+          isFavorite: false,
+          message: "Removed this class from favorites",
+        });
       } else {
         await favoriteCollection.insertOne({
           ...req.body,
@@ -353,6 +354,13 @@ const run = async () => {
           .status(200)
           .json({ isFavorite: true, message: "Added this class to favorites" });
       }
+    });
+
+    // delete a class from favorites
+    app.delete("/api/favorites", async (req, res) => {
+      const { userId, classId } = req.body;
+      const result = await favoriteCollection.deleteOne({ userId, classId });
+      res.json(result);
     });
 
     // get all favorite classes by user id
