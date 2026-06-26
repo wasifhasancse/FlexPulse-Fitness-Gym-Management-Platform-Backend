@@ -335,6 +335,13 @@ const run = async () => {
       res.status(200).json({ isBooked: !!existing });
     });
 
+    // get all favorite classes by user id
+    app.get("/api/favorites", async (req, res) => {
+      const { userId } = req.query;
+      const favorites = await favoriteCollection.find({ userId }).toArray();
+      res.status(200).json(favorites);
+    });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
