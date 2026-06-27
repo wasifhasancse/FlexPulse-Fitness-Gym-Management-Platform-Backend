@@ -82,7 +82,6 @@ const adminOrTrainerVerify = async (req, res, next) => {
   next();
 };
 
-
 const run = async () => {
   try {
     // await client.connect();
@@ -97,6 +96,44 @@ const run = async () => {
     );
     const userCollection = database.collection("user");
 
+    const normalizeStatus = (value = "") => String(value).trim().toLowerCase();
+
+    const getUserByIdOrEmail = async ({ userId, email }) => {
+      if (userId && ObjectId.isValid(userId)) {
+        return userCollection.findOne({ _id: new ObjectId(userId) });
+      }
+      if (email) {
+        return userCollection.findOne({ email });
+      }
+      return null;
+    };
+
+    const ensureUserActive = async ({ userId, email }, res) => {
+      const user = await getUserByIdOrEmail({ userId, email });
+      if (!user) {
+        res.status(401).json({ message: "Unauthorize" });
+        return { ok: false };
+      }
+
+      if (normalizeStatus(user.status) === "banned") {
+        res.status(403).json({ message: "Action restricted by Admin" });
+        return { ok: false };
+      }
+
+      return { ok: true, user };
+    };
+
+    app.patch("/api/admin/users/:id/role", async (req, res) => {
+      const { id } = req.params;
+      const { userRole } = req.body;
+      console.log(id, userRole);
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role: userRole } },
+      );
+      res.send(result);
+    });
+
     // get all users
     app.get("/api/all-users", async (req, res) => {
       const result = await userCollection.find().toArray();
@@ -106,13 +143,61 @@ const run = async () => {
     // get all classes and filter by search and category
     app.get("/api/all-class", async (req, res) => {
       try {
-        const { search = "", category = "" } = req.query;
+        const {
+          search = "",
+          category = "",
+          page,
+          limit,
+          includeAll,
+        } = req.query;
         const query = {};
+
+        if (includeAll !== "true") {
+          query.status = "approved";
+        }
+
         if (search) query.className = { $regex: search, $options: "i" };
-        if (category && category !== "All Categories")
-          query.category = category;
-        const result = await classCollection.find(query).toArray();
-        res.send(result);
+
+        if (category && category !== "All Categories") {
+          const categories = category
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean);
+
+          if (categories.length > 0) {
+            query.category = { $in: categories };
+          }
+        }
+
+        const parsedPage = Number(page) || 1;
+        const parsedLimit = Number(limit) || 0;
+
+        if (parsedLimit > 0) {
+          const skip = (parsedPage - 1) * parsedLimit;
+          const [items, total] = await Promise.all([
+            classCollection
+              .find(query)
+              .sort({ createdAt: -1 })
+              .skip(skip)
+              .limit(parsedLimit)
+              .toArray(),
+            classCollection.countDocuments(query),
+          ]);
+
+          return res.send({
+            items,
+            total,
+            page: parsedPage,
+            limit: parsedLimit,
+            totalPages: Math.ceil(total / parsedLimit) || 1,
+          });
+        }
+
+        const result = await classCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+        return res.send(result);
       } catch (error) {
         console.error("Error:", error.message);
         res.status(500).send({ message: error.message });
@@ -136,10 +221,17 @@ const run = async () => {
 
     // add a new class
     app.post("/api/add-class", async (req, res) => {
+      const activeResult = await ensureUserActive(
+        { userId: req.body?.authorId, email: req.body?.authorEmail },
+        res,
+      );
+      if (!activeResult.ok) return;
+
       const data = req.body;
       const newData = {
         ...data,
         createdAt: new Date(),
+        status: data?.status || "pending",
       };
       const result = await classCollection.insertOne(newData);
       res.send(result);
@@ -166,6 +258,10 @@ const run = async () => {
     //  add a new subscription
     app.post("/api/subscription", async (req, res) => {
       const { sessionId, userId, priceId } = req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
       const isExist = await subscriptionsCollection.findOne({ sessionId });
       if (isExist) return res.json({ msg: "Subscription already exists!" });
       await subscriptionsCollection.insertOne({ sessionId, userId, priceId });
@@ -178,6 +274,12 @@ const run = async () => {
 
     // add a new forum post
     app.post("/api/forumPost", async (req, res) => {
+      const activeResult = await ensureUserActive(
+        { userId: req.body?.userId, email: req.body?.userEmail },
+        res,
+      );
+      if (!activeResult.ok) return;
+
       const newPost = {
         ...req.body,
         createdAt: new Date(),
@@ -189,7 +291,55 @@ const run = async () => {
 
     // get all forum posts
     app.get("/api/forumPost", async (req, res) => {
-      const result = await forumPostCollection.find().toArray();
+      const { search = "", page, limit, includeAll, userId } = req.query;
+
+      const query = {};
+
+      if (userId) {
+        query.userId = userId;
+      }
+
+      if (includeAll !== "true") {
+        query.status = "approved";
+      }
+
+      if (search) {
+        query.$or = [
+          { title: { $regex: search, $options: "i" } },
+          { description: { $regex: search, $options: "i" } },
+          { userName: { $regex: search, $options: "i" } },
+          { userRole: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const parsedPage = Number(page) || 1;
+      const parsedLimit = Number(limit) || 0;
+
+      if (parsedLimit > 0) {
+        const skip = (parsedPage - 1) * parsedLimit;
+        const [items, total] = await Promise.all([
+          forumPostCollection
+            .find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parsedLimit)
+            .toArray(),
+          forumPostCollection.countDocuments(query),
+        ]);
+
+        return res.send({
+          items,
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+          totalPages: Math.ceil(total / parsedLimit) || 1,
+        });
+      }
+
+      const result = await forumPostCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
     });
 
@@ -212,6 +362,10 @@ const run = async () => {
     // like or remove like to a forum post
     app.post("/api/forum/like", async (req, res) => {
       const { postId, userId } = req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
       const post = await forumPostCollection.findOne({
         _id: new ObjectId(postId),
       });
@@ -234,10 +388,47 @@ const run = async () => {
       }
     });
 
+    // dislike or remove dislike to a forum post
+    app.post("/api/forum/dislike", async (req, res) => {
+      const { postId, userId } = req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
+      const post = await forumPostCollection.findOne({
+        _id: new ObjectId(postId),
+      });
+
+      const dislikes = post?.dislikes || [];
+      const alreadyDisliked = dislikes.includes(userId);
+
+      if (alreadyDisliked) {
+        await forumPostCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          { $pull: { dislikes: userId } },
+        );
+        return res.json({ disliked: false, dislikeCount: dislikes.length - 1 });
+      }
+
+      await forumPostCollection.updateOne(
+        { _id: new ObjectId(postId) },
+        {
+          $pull: { likes: userId },
+          $push: { dislikes: userId },
+        },
+      );
+
+      return res.json({ disliked: true, dislikeCount: dislikes.length + 1 });
+    });
+
     // add a comment to a forum post
     app.post("/api/forum/comment", async (req, res) => {
       const { postId, userId, userName, userImage, userRole, content } =
         req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
       const comment = {
         _id: new ObjectId(),
         userId,
@@ -304,6 +495,9 @@ const run = async () => {
     app.post("/api/forum/comment/like", async (req, res) => {
       const { postId, commentId, userId } = req.body;
 
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
       const post = await forumPostCollection.findOne({
         _id: new ObjectId(postId),
       });
@@ -334,6 +528,49 @@ const run = async () => {
       }
     });
 
+    // dislike or remove dislike to a comment in a forum post
+    app.post("/api/forum/comment/dislike", async (req, res) => {
+      const { postId, commentId, userId } = req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
+      const post = await forumPostCollection.findOne({
+        _id: new ObjectId(postId),
+      });
+
+      const comment = post?.comments?.find(
+        (commentItem) => commentItem._id.toString() === commentId,
+      );
+
+      const dislikes = comment?.dislikes || [];
+      const alreadyDisliked = dislikes.includes(userId);
+
+      if (alreadyDisliked) {
+        await forumPostCollection.updateOne(
+          {
+            _id: new ObjectId(postId),
+            "comments._id": new ObjectId(commentId),
+          },
+          { $pull: { "comments.$.dislikes": userId } },
+        );
+        return res.json({ disliked: false, dislikeCount: dislikes.length - 1 });
+      }
+
+      await forumPostCollection.updateOne(
+        {
+          _id: new ObjectId(postId),
+          "comments._id": new ObjectId(commentId),
+        },
+        {
+          $pull: { "comments.$.likes": userId },
+          $push: { "comments.$.dislikes": userId },
+        },
+      );
+
+      return res.json({ disliked: true, dislikeCount: dislikes.length + 1 });
+    });
+
     // add a reply to a comment in a forum post
     app.post("/api/forum/reply", async (req, res) => {
       const {
@@ -345,6 +582,9 @@ const run = async () => {
         userRole,
         content,
       } = req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
 
       const reply = {
         _id: new ObjectId(),
@@ -365,6 +605,94 @@ const run = async () => {
       res.json({ success: true, reply });
     });
 
+    // update a reply in a forum post comment
+    app.put(
+      "/api/forum/reply/:postId/:commentId/:replyId",
+      async (req, res) => {
+        const { postId, commentId, replyId } = req.params;
+        const { content, userId } = req.body;
+
+        const post = await forumPostCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        const comment = post?.comments?.find(
+          (commentItem) => commentItem._id.toString() === commentId,
+        );
+
+        const reply = comment?.replies?.find(
+          (replyItem) => replyItem._id.toString() === replyId,
+        );
+
+        if (!reply || reply.userId !== userId) {
+          return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        await forumPostCollection.updateOne(
+          {
+            _id: new ObjectId(postId),
+            "comments._id": new ObjectId(commentId),
+          },
+          {
+            $set: {
+              "comments.$[c].replies.$[r].content": content,
+              "comments.$[c].replies.$[r].edited": true,
+            },
+          },
+          {
+            arrayFilters: [
+              { "c._id": new ObjectId(commentId) },
+              { "r._id": new ObjectId(replyId) },
+            ],
+          },
+        );
+
+        return res.json({ success: true, content });
+      },
+    );
+
+    // delete a reply in a forum post comment
+    app.delete(
+      "/api/forum/reply/:postId/:commentId/:replyId",
+      async (req, res) => {
+        const { postId, commentId, replyId } = req.params;
+        const { userId } = req.body;
+
+        const post = await forumPostCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        const comment = post?.comments?.find(
+          (commentItem) => commentItem._id.toString() === commentId,
+        );
+
+        const reply = comment?.replies?.find(
+          (replyItem) => replyItem._id.toString() === replyId,
+        );
+
+        if (!reply || reply.userId !== userId) {
+          return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        await forumPostCollection.updateOne(
+          {
+            _id: new ObjectId(postId),
+            "comments._id": new ObjectId(commentId),
+          },
+          {
+            $pull: {
+              "comments.$[c].replies": { _id: new ObjectId(replyId) },
+            },
+          },
+          {
+            arrayFilters: [{ "c._id": new ObjectId(commentId) }],
+          },
+        );
+
+        return res.json({ success: true });
+      },
+    );
+
     // delete a forum post by forumPost id
     app.delete("/api/my-post/:id", async (req, res) => {
       const { id } = req.params;
@@ -376,6 +704,12 @@ const run = async () => {
 
     // add a new booking class
     app.post("/api/bookClass", async (req, res) => {
+      const activeResult = await ensureUserActive(
+        { userId: req.body?.userId, email: req.body?.userEmail },
+        res,
+      );
+      if (!activeResult.ok) return;
+
       const result = await bookingClassCollection.insertOne(req.body);
       res.status(200).json(result);
     });
@@ -401,6 +735,10 @@ const run = async () => {
     // add or remove toggle a class from favorites
     app.post("/api/favorites", async (req, res) => {
       const { userId, classId } = req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
       const existing = await favoriteCollection.findOne({ userId, classId });
       if (existing) {
         await favoriteCollection.deleteOne({ userId, classId });
@@ -443,6 +781,10 @@ const run = async () => {
     // add a new trainer application
     app.post("/api/trainer-application", async (req, res) => {
       const { userId } = req.body;
+
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+
       const existing = await trainerApplicationCollection.findOne({ userId });
       if (existing) {
         return res.status(400).json({ error: "Already applied!" });
@@ -450,6 +792,225 @@ const run = async () => {
       const result = await trainerApplicationCollection.insertOne(req.body);
       res.json(result);
     });
+
+    // get all class records for admin dashboard moderation
+    app.get("/api/admin/all-classesByAdmin", async (req, res) => {
+      const result = await classCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.send(result);
+    });
+
+    // approve / reject class by admin
+    app.patch(
+      "/api/admin/classes/:id",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const { id } = req.params;
+        const { status } = req.body;
+        const result = await classCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: normalizeStatus(status), updatedAt: new Date() } },
+        );
+        res.send(result);
+      },
+    );
+
+    // delete class by admin
+    app.delete(
+      "/api/admin/classes/:id",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const { id } = req.params;
+        const result = await classCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      },
+    );
+
+    // get all trainer applications for admin
+    app.get(
+      "/api/admin/trainer-applications",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const result = await trainerApplicationCollection
+          .find()
+          .sort({ appliedAt: -1 })
+          .toArray();
+        res.send(result);
+      },
+    );
+
+    // approve a trainer application
+    app.patch(
+      "/api/admin/trainer-applications/approve/:id",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const { id } = req.params;
+        const { feedback = "" } = req.body;
+
+        const application = await trainerApplicationCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!application) {
+          return res.status(404).json({ message: "Application not found" });
+        }
+
+        await trainerApplicationCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: "approved",
+              feedback,
+              reviewedAt: new Date(),
+            },
+          },
+        );
+
+        if (ObjectId.isValid(application.userId)) {
+          await userCollection.updateOne(
+            { _id: new ObjectId(application.userId) },
+            {
+              $set: {
+                role: "trainer",
+              },
+            },
+          );
+        }
+
+        return res.json({ success: true });
+      },
+    );
+
+    // reject a trainer application
+    app.patch(
+      "/api/admin/trainer-applications/reject/:id",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const { id } = req.params;
+        const { feedback = "" } = req.body;
+
+        await trainerApplicationCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: "rejected",
+              feedback,
+              reviewedAt: new Date(),
+            },
+          },
+        );
+
+        return res.json({ success: true });
+      },
+    );
+
+    // delete trainer application
+    app.delete(
+      "/api/admin/trainer-applications/:id",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const { id } = req.params;
+        const result = await trainerApplicationCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      },
+    );
+
+    // get all trainers
+    app.get(
+      "/api/admin/trainers",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const result = await userCollection.find({ role: "trainer" }).toArray();
+        res.send(result);
+      },
+    );
+
+    // update user role (used for trainer demotion)
+    app.patch(
+      "/api/users/:userId/role",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const { userId } = req.params;
+        const { role } = req.body;
+
+        const result = await userCollection.updateOne(
+          { _id: new ObjectId(userId) },
+          { $set: { role } },
+        );
+
+        if (role === "member") {
+          await trainerApplicationCollection.updateMany(
+            { userId },
+            { $set: { status: "demoted", reviewedAt: new Date() } },
+          );
+        }
+
+        res.send(result);
+      },
+    );
+
+    // get all transactions for admin
+    app.get("/api/transactions", verifyToken, adminVerify, async (req, res) => {
+      const [bookings, subscriptions] = await Promise.all([
+        bookingClassCollection.find().sort({ bookedAt: -1 }).toArray(),
+        subscriptionsCollection.find().sort({ createdAt: -1 }).toArray(),
+      ]);
+
+      const normalizedBookings = bookings.map((item) => ({
+        ...item,
+        amount: Number(item.price) || 0,
+        date: item.bookedAt || item.createdAt,
+      }));
+
+      const normalizedSubscriptions = subscriptions.map((item) => ({
+        ...item,
+        amount: Number(item.amount) || 0,
+        date: item.createdAt,
+        userEmail: item.userEmail || "N/A",
+      }));
+
+      const result = [...normalizedBookings, ...normalizedSubscriptions].sort(
+        (a, b) => new Date(b.date) - new Date(a.date),
+      );
+
+      res.send(result);
+    });
+
+    // approve forum post by admin
+    app.patch(
+      "/api/admin/forum-posts/:id",
+      verifyToken,
+      adminVerify,
+      async (req, res) => {
+        const { id } = req.params;
+        const { status = "approved" } = req.body;
+
+        const result = await forumPostCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: normalizeStatus(status),
+              updatedAt: new Date(),
+            },
+          },
+        );
+        res.send(result);
+      },
+    );
 
     // get a trainer application by user id
     app.get("/api/trainer-application", async (req, res) => {
