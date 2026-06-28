@@ -123,15 +123,27 @@ const run = async () => {
       return { ok: true, user };
     };
 
+    // update user role for admin dashboard
     app.patch("/api/admin/users/:id/role", async (req, res) => {
       const { id } = req.params;
       const { userRole } = req.body;
-      console.log(id, userRole);
       const result = await userCollection.updateOne(
         { _id: new ObjectId(id) },
         { $set: { role: userRole } },
       );
-      res.send(result);
+      res.json(result);
+    });
+
+    // block user by admin dashboard
+    app.patch("/api/admin/users/:id/block", async (req, res) => {
+      const { id } = req.params;
+      const { status } = req.body;
+      console.log(id, status);
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: status } }
+      );
+      res.json(result);
     });
 
     // get all users
