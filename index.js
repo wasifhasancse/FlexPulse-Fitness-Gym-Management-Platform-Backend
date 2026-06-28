@@ -141,7 +141,7 @@ const run = async () => {
       console.log(id, status);
       const result = await userCollection.updateOne(
         { _id: new ObjectId(id) },
-        { $set: { status: status } }
+        { $set: { status: status } },
       );
       res.json(result);
     });
@@ -393,23 +393,31 @@ const run = async () => {
       let updatedDislikes = [...dislikes];
 
       if (alreadyLiked) {
-        updatedLikes = updatedLikes.filter(id => id !== userId);
+        updatedLikes = updatedLikes.filter((id) => id !== userId);
         await forumPostCollection.updateOne(
           { _id: new ObjectId(postId) },
           { $pull: { likes: userId } },
         );
-        res.json({ liked: false, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
+        res.json({
+          liked: false,
+          likeCount: updatedLikes.length,
+          dislikeCount: updatedDislikes.length,
+        });
       } else {
         updatedLikes.push(userId);
-        updatedDislikes = updatedDislikes.filter(id => id !== userId);
+        updatedDislikes = updatedDislikes.filter((id) => id !== userId);
         await forumPostCollection.updateOne(
           { _id: new ObjectId(postId) },
           {
             $push: { likes: userId },
-            $pull: { dislikes: userId }
+            $pull: { dislikes: userId },
           },
         );
-        res.json({ liked: true, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
+        res.json({
+          liked: true,
+          likeCount: updatedLikes.length,
+          dislikeCount: updatedDislikes.length,
+        });
       }
     });
 
@@ -432,16 +440,20 @@ const run = async () => {
       let updatedDislikes = [...dislikes];
 
       if (alreadyDisliked) {
-        updatedDislikes = updatedDislikes.filter(id => id !== userId);
+        updatedDislikes = updatedDislikes.filter((id) => id !== userId);
         await forumPostCollection.updateOne(
           { _id: new ObjectId(postId) },
           { $pull: { dislikes: userId } },
         );
-        return res.json({ disliked: false, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
+        return res.json({
+          disliked: false,
+          likeCount: updatedLikes.length,
+          dislikeCount: updatedDislikes.length,
+        });
       }
 
       updatedDislikes.push(userId);
-      updatedLikes = updatedLikes.filter(id => id !== userId);
+      updatedLikes = updatedLikes.filter((id) => id !== userId);
       await forumPostCollection.updateOne(
         { _id: new ObjectId(postId) },
         {
@@ -450,7 +462,11 @@ const run = async () => {
         },
       );
 
-      return res.json({ disliked: true, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
+      return res.json({
+        disliked: true,
+        likeCount: updatedLikes.length,
+        dislikeCount: updatedDislikes.length,
+      });
     });
 
     // add a comment to a forum post
@@ -1020,9 +1036,12 @@ const run = async () => {
     // get trainer dashboard stats (total students enrolled)
     app.get("/api/trainer/stats", async (req, res) => {
       const { trainerId } = req.query;
-      if (!trainerId) return res.status(400).json({ message: "trainerId required" });
+      if (!trainerId)
+        return res.status(400).json({ message: "trainerId required" });
 
-      const trainerClasses = await classCollection.find({ authorId: trainerId }).toArray();
+      const trainerClasses = await classCollection
+        .find({ authorId: trainerId })
+        .toArray();
       const classIds = trainerClasses.map((cls) => String(cls._id));
 
       const totalStudents = await bookingClassCollection.countDocuments({
@@ -1036,20 +1055,21 @@ const run = async () => {
     app.get("/api/trainer/classes/:classId/students", async (req, res) => {
       const { classId } = req.params;
       const bookings = await bookingClassCollection.find({ classId }).toArray();
-      const students = bookings.map((b) => ({ name: b.userName, email: b.userEmail }));
+      const students = bookings.map((b) => ({
+        name: b.userName,
+        email: b.userEmail,
+      }));
       res.json(students);
     });
 
     // get featured classes (most booked)
     app.get("/api/featured-classes", async (req, res) => {
-
-        const classes = await classCollection
-          .find({ status: "approved" })
-          .sort({ bookingCount: -1 })
-          .limit(6)
-          .toArray();
-        res.send(classes);
-
+      const classes = await classCollection
+        .find({ status: "approved" })
+        .sort({ bookingCount: -1 })
+        .limit(6)
+        .toArray();
+      res.send(classes);
     });
 
     // get all transactions for admin
