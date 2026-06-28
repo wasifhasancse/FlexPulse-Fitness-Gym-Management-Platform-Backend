@@ -272,7 +272,7 @@ const run = async () => {
       res.json({ msg: "Subscription added successfully!" });
     });
 
-    // add a new forum post
+    // add a new forum post (auto-approve for trainer/admin)
     app.post("/api/forumPost", async (req, res) => {
       const activeResult = await ensureUserActive(
         { userId: req.body?.userId, email: req.body?.userEmail },
@@ -280,10 +280,13 @@ const run = async () => {
       );
       if (!activeResult.ok) return;
 
+      const role = req.body?.userRole || "member";
+      const autoApprove = role === "trainer" || role === "admin";
+
       const newPost = {
         ...req.body,
         createdAt: new Date(),
-        status: "pending",
+        status: autoApprove ? "approved" : "pending",
       };
       const result = await forumPostCollection.insertOne(newPost);
       res.status(200).json(result);
@@ -371,20 +374,30 @@ const run = async () => {
       });
 
       const likes = post.likes || [];
+      const dislikes = post.dislikes || [];
       const alreadyLiked = likes.includes(userId);
 
+      let updatedLikes = [...likes];
+      let updatedDislikes = [...dislikes];
+
       if (alreadyLiked) {
+        updatedLikes = updatedLikes.filter(id => id !== userId);
         await forumPostCollection.updateOne(
           { _id: new ObjectId(postId) },
           { $pull: { likes: userId } },
         );
-        res.json({ liked: false, likeCount: likes.length - 1 });
+        res.json({ liked: false, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
       } else {
+        updatedLikes.push(userId);
+        updatedDislikes = updatedDislikes.filter(id => id !== userId);
         await forumPostCollection.updateOne(
           { _id: new ObjectId(postId) },
-          { $push: { likes: userId } },
+          {
+            $push: { likes: userId },
+            $pull: { dislikes: userId }
+          },
         );
-        res.json({ liked: true, likeCount: likes.length + 1 });
+        res.json({ liked: true, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
       }
     });
 
@@ -399,17 +412,24 @@ const run = async () => {
         _id: new ObjectId(postId),
       });
 
+      const likes = post?.likes || [];
       const dislikes = post?.dislikes || [];
       const alreadyDisliked = dislikes.includes(userId);
 
+      let updatedLikes = [...likes];
+      let updatedDislikes = [...dislikes];
+
       if (alreadyDisliked) {
+        updatedDislikes = updatedDislikes.filter(id => id !== userId);
         await forumPostCollection.updateOne(
           { _id: new ObjectId(postId) },
           { $pull: { dislikes: userId } },
         );
-        return res.json({ disliked: false, dislikeCount: dislikes.length - 1 });
+        return res.json({ disliked: false, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
       }
 
+      updatedDislikes.push(userId);
+      updatedLikes = updatedLikes.filter(id => id !== userId);
       await forumPostCollection.updateOne(
         { _id: new ObjectId(postId) },
         {
@@ -418,7 +438,7 @@ const run = async () => {
         },
       );
 
-      return res.json({ disliked: true, dislikeCount: dislikes.length + 1 });
+      return res.json({ disliked: true, likeCount: updatedLikes.length, dislikeCount: updatedDislikes.length });
     });
 
     // add a comment to a forum post
@@ -710,12 +730,24 @@ const run = async () => {
       );
       if (!activeResult.ok) return;
 
-      const result = await bookingClassCollection.insertOne(req.body);
+      const result = await bookingClassCollection.insertOne({
+        ...req.body,
+        bookedAt: new Date(),
+      });
+
+      // increment bookingCount on the class
+      if (req.body?.classId && ObjectId.isValid(req.body.classId)) {
+        await classCollection.updateOne(
+          { _id: new ObjectId(req.body.classId) },
+          { $inc: { bookingCount: 1 } },
+        );
+      }
+
       res.status(200).json(result);
     });
 
     // get all bookings by user id
-    app.get("/api/getbookings", async (req, res) => {
+    app.get(["/api/getbookings", "/api/my-bookings"], async (req, res) => {
       const { userId } = req.query;
       const query = { userId: userId };
       const result = await bookingClassCollection.find(query).toArray();
@@ -963,6 +995,51 @@ const run = async () => {
       },
     );
 
+    // get admin dashboard stats
+    app.get("/api/admin/stats", verifyToken, adminVerify, async (req, res) => {
+      const [totalUsers, totalClasses, totalBookings] = await Promise.all([
+        userCollection.countDocuments(),
+        classCollection.countDocuments(),
+        bookingClassCollection.countDocuments(),
+      ]);
+      res.json({ totalUsers, totalClasses, totalBookings });
+    });
+
+    // get trainer dashboard stats (total students enrolled)
+    app.get("/api/trainer/stats", async (req, res) => {
+      const { trainerId } = req.query;
+      if (!trainerId) return res.status(400).json({ message: "trainerId required" });
+
+      const trainerClasses = await classCollection.find({ authorId: trainerId }).toArray();
+      const classIds = trainerClasses.map((cls) => String(cls._id));
+
+      const totalStudents = await bookingClassCollection.countDocuments({
+        classId: { $in: classIds },
+      });
+
+      res.json({ totalStudents, totalClasses: trainerClasses.length });
+    });
+
+    // get students for a specific class (trainer)
+    app.get("/api/trainer/classes/:classId/students", async (req, res) => {
+      const { classId } = req.params;
+      const bookings = await bookingClassCollection.find({ classId }).toArray();
+      const students = bookings.map((b) => ({ name: b.userName, email: b.userEmail }));
+      res.json(students);
+    });
+
+    // get featured classes (most booked)
+    app.get("/api/featured-classes", async (req, res) => {
+
+        const classes = await classCollection
+          .find({ status: "approved" })
+          .sort({ bookingCount: -1 })
+          .limit(6)
+          .toArray();
+        res.send(classes);
+
+    });
+
     // get all transactions for admin
     app.get("/api/transactions", verifyToken, adminVerify, async (req, res) => {
       const [bookings, subscriptions] = await Promise.all([
@@ -1032,9 +1109,9 @@ const run = async () => {
     });
 
     // await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
-    );
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!",
+    // );
   } finally {
     // await client.close();
   }
