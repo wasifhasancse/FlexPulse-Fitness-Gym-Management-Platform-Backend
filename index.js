@@ -261,8 +261,9 @@ const run = async () => {
     });
 
     // delete a class by class id
-    app.delete("/api/my-class/:id", async (req, res) => {
+    app.delete("/api/my-class/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
+      console.log("Deleting class with ID:", id); // Debugging line to check the class ID
       const result = await classCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     });
@@ -373,6 +374,21 @@ const run = async () => {
       const result = await forumPostCollection.findOne(query);
       res.send(result);
     });
+
+   app.get("/api/featured-forumPost", async (req, res) => {
+     try {
+       const query = {};
+       const result = await forumPostCollection
+         .find(query)
+         .sort({ createdAt: -1 }) // Sort by latest (descending order)
+         .limit(3)
+         .toArray();
+       res.send(result);
+     } catch (error) {
+       console.error("Error fetching top forum posts:", error);
+       res.status(500).send({ message: "Internal server error" });
+     }
+   });
 
     // like or remove like to a forum post
     app.post("/api/forum/like", async (req, res) => {
