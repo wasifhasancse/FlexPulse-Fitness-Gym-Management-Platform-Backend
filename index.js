@@ -91,6 +91,7 @@ const run = async () => {
     const bookingClassCollection = database.collection("bookingClasses");
     const favoriteCollection = database.collection("favoriteClasses");
     const forumPostCollection = database.collection("forumPost");
+    const transactionCollection = database.collection("transactions");
     const trainerApplicationCollection = database.collection(
       "trainerApplications",
     );
@@ -122,6 +123,29 @@ const run = async () => {
 
       return { ok: true, user };
     };
+
+    // transaction routes and transactionCollection
+    app.post("/api/transaction", async (req, res) => {
+      const { userId, classId, sessionId, transactionId, amount } = req.body;
+      const activeResult = await ensureUserActive({ userId }, res);
+      if (!activeResult.ok) return;
+      const transactionData = {
+        userId,
+        classId,
+        sessionId,
+        transactionId,
+        amount,
+      };
+      const result = await transactionCollection.insertOne(transactionData);
+      res.status(201).json(result);
+    });
+
+    app.get("/api/transaction", async (req, res) => {
+      const { userId } = req.query;
+      const transactions = await transactionCollection.find().toArray();
+      console.log("Fetched Transactions:", transactions); // Debugging line to check the fetched transactions
+      res.json(transactions);
+    });
 
     // update user role for admin dashboard
     app.patch("/api/admin/users/:id/role", async (req, res) => {
@@ -375,20 +399,20 @@ const run = async () => {
       res.send(result);
     });
 
-   app.get("/api/featured-forumPost", async (req, res) => {
-     try {
-       const query = {};
-       const result = await forumPostCollection
-         .find(query)
-         .sort({ createdAt: -1 }) // Sort by latest (descending order)
-         .limit(3)
-         .toArray();
-       res.send(result);
-     } catch (error) {
-       console.error("Error fetching top forum posts:", error);
-       res.status(500).send({ message: "Internal server error" });
-     }
-   });
+    app.get("/api/featured-forumPost", async (req, res) => {
+      try {
+        const query = {};
+        const result = await forumPostCollection
+          .find(query)
+          .sort({ createdAt: -1 }) // Sort by latest (descending order)
+          .limit(3)
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching top forum posts:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
 
     // like or remove like to a forum post
     app.post("/api/forum/like", async (req, res) => {
@@ -767,6 +791,7 @@ const run = async () => {
     });
 
     // add a new booking class
+
     app.post("/api/bookClass", async (req, res) => {
       const activeResult = await ensureUserActive(
         { userId: req.body?.userId, email: req.body?.userEmail },
@@ -774,21 +799,67 @@ const run = async () => {
       );
       if (!activeResult.ok) return;
 
-      const result = await bookingClassCollection.insertOne({
-        ...req.body,
-        bookedAt: new Date(),
-      });
+      const { userId, classId, ...otherDetails } = req.body;
 
-      // increment bookingCount on the class
-      if (req.body?.classId && ObjectId.isValid(req.body.classId)) {
-        await classCollection.updateOne(
-          { _id: new ObjectId(req.body.classId) },
-          { $inc: { bookingCount: 1 } },
-        );
+      if (!userId || !classId) {
+        return res.status(400).json({ error: "Missing userId or classId" });
       }
 
-      res.status(200).json(result);
+      // Use updateOne with upsert to prevent duplicates securely
+      const result = await bookingClassCollection.updateOne(
+        { userId: userId, classId: classId },
+        {
+          $setOnInsert: {
+            userId,
+            classId,
+            ...otherDetails,
+            bookedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+
+      // result.upsertedCount will be 1 only if it's a completely new document
+      if (result.upsertedCount === 1) {
+        if (classId && ObjectId.isValid(classId)) {
+          await classCollection.updateOne(
+            { _id: new ObjectId(classId) },
+            { $inc: { bookingCount: 1 } },
+          );
+        }
+        return res
+          .status(200)
+          .json({ message: "Booking created successfully", result });
+      } else {
+        // Already existed, return a success status so frontend doesn't crash
+        return res.status(200).json({
+          message: "Booking already exists, ignoring duplicate entry",
+        });
+      }
     });
+
+    // app.post("/api/bookClass", async (req, res) => {
+    //   const activeResult = await ensureUserActive(
+    //     { userId: req.body?.userId, email: req.body?.userEmail },
+    //     res,
+    //   );
+    //   if (!activeResult.ok) return;
+
+    //   const result = await bookingClassCollection.insertOne({
+    //     ...req.body,
+    //     bookedAt: new Date(),
+    //   });
+
+    //   // increment bookingCount on the class
+    //   if (req.body?.classId && ObjectId.isValid(req.body.classId)) {
+    //     await classCollection.updateOne(
+    //       { _id: new ObjectId(req.body.classId) },
+    //       { $inc: { bookingCount: 1 } },
+    //     );
+    //   }
+
+    //   res.status(200).json(result);
+    // });
 
     // get all bookings by user id
     app.get(["/api/getbookings", "/api/my-bookings"], async (req, res) => {
