@@ -126,16 +126,43 @@ const run = async () => {
 
     // transaction routes and transactionCollection
     app.post("/api/transaction", async (req, res) => {
-      const { userId, classId, sessionId, transactionId, amount } = req.body;
+      const {
+        userId,
+        userEmail,
+        userName,
+        classId,
+        className,
+        sessionId,
+        transactionId,
+        amount,
+      } = req.body;
+
       const activeResult = await ensureUserActive({ userId }, res);
       if (!activeResult.ok) return;
       const transactionData = {
         userId,
+        userEmail,
+        userName,
         classId,
+        className,
         sessionId,
         transactionId,
         amount,
+        bookedAt: new Date(),
       };
+      const existingTransaction = await transactionCollection.findOne({
+        userId,
+        classId,
+        sessionId,
+      });
+      if (existingTransaction) {
+        return res.status(400).json({ message: "Transaction already exists" });
+      }
+      // update the booking count for the class at classCollection
+      await classCollection.updateOne(
+        { _id: new ObjectId(classId) },
+        { $inc: { bookingCount: 1 } },
+      );
       const result = await transactionCollection.insertOne(transactionData);
       res.status(201).json(result);
     });
@@ -143,7 +170,6 @@ const run = async () => {
     app.get("/api/transaction", async (req, res) => {
       const { userId } = req.query;
       const transactions = await transactionCollection.find().toArray();
-      console.log("Fetched Transactions:", transactions); // Debugging line to check the fetched transactions
       res.json(transactions);
     });
 
@@ -247,6 +273,15 @@ const run = async () => {
       res.send(result || {});
     });
 
+    app.get('/api/classBookingCount/:id', verifyToken, async (req, res) => {
+      const { id } = req.params;
+      const classDoc = await bookingClassCollection.find({
+        classId: id,
+      });
+      const bookingCount = await classDoc.count();
+      res.send({ bookingCount: bookingCount || 0 });
+    });
+
     // get a single trainer's classes by trainer id
     app.get("/api/getmyclasses", async (req, res) => {
       const { trainerId } = req.query;
@@ -267,6 +302,7 @@ const run = async () => {
       const newData = {
         ...data,
         createdAt: new Date(),
+        bookingCount: 0,
         status: data?.status || "pending",
       };
       const result = await classCollection.insertOne(newData);
@@ -837,29 +873,6 @@ const run = async () => {
         });
       }
     });
-
-    // app.post("/api/bookClass", async (req, res) => {
-    //   const activeResult = await ensureUserActive(
-    //     { userId: req.body?.userId, email: req.body?.userEmail },
-    //     res,
-    //   );
-    //   if (!activeResult.ok) return;
-
-    //   const result = await bookingClassCollection.insertOne({
-    //     ...req.body,
-    //     bookedAt: new Date(),
-    //   });
-
-    //   // increment bookingCount on the class
-    //   if (req.body?.classId && ObjectId.isValid(req.body.classId)) {
-    //     await classCollection.updateOne(
-    //       { _id: new ObjectId(req.body.classId) },
-    //       { $inc: { bookingCount: 1 } },
-    //     );
-    //   }
-
-    //   res.status(200).json(result);
-    // });
 
     // get all bookings by user id
     app.get(["/api/getbookings", "/api/my-bookings"], async (req, res) => {
