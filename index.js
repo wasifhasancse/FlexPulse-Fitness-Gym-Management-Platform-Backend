@@ -136,7 +136,13 @@ const run = async () => {
         transactionId,
         amount,
       } = req.body;
-
+      const user = await userCollection.findOne({ _id: new ObjectId(userId) });
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorize" });
+      }
+      if (user.status === "banned") {
+        return res.status(403).json({ message: "Action restricted by Admin." });
+      }
       const activeResult = await ensureUserActive({ userId }, res);
       if (!activeResult.ok) return;
       const transactionData = {
@@ -273,7 +279,7 @@ const run = async () => {
       res.send(result || {});
     });
 
-    app.get('/api/classBookingCount/:id', verifyToken, async (req, res) => {
+    app.get("/api/classBookingCount/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       const classDoc = await bookingClassCollection.find({
         classId: id,
@@ -834,9 +840,14 @@ const run = async () => {
         res,
       );
       if (!activeResult.ok) return;
-
       const { userId, classId, ...otherDetails } = req.body;
-
+      const user = await userCollection.findOne({ _id: new ObjectId(userId) });
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorize" });
+      }
+      if (user.status === "banned") {
+        return res.status(403).json({ message: "Action restricted by Admin." });
+      }
       if (!userId || !classId) {
         return res.status(400).json({ error: "Missing userId or classId" });
       }
@@ -941,7 +952,13 @@ const run = async () => {
     // add a new trainer application
     app.post("/api/trainer-application", async (req, res) => {
       const { userId } = req.body;
-
+      const user = await userCollection.findOne({ _id: new ObjectId(userId) });
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorize" });
+      }
+      if (user.status === "banned") {
+        return res.status(403).json({ message: "Action restricted by Admin." });
+      }
       const activeResult = await ensureUserActive({ userId }, res);
       if (!activeResult.ok) return;
 
@@ -1220,6 +1237,8 @@ const run = async () => {
         res.send(result);
       },
     );
+
+    // A blocked user cannot book a class, apply to be a trainer, or write comments on the forum. If they try, the UI should show an error toast (e.g., "Action restricted by Admin").
 
     // get a trainer application by user id
     app.get("/api/trainer-application", async (req, res) => {
