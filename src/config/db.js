@@ -1,68 +1,59 @@
+const dns = require("node:dns");
+try {
+  dns.setServers(["1.1.1.1", "8.8.8.8"]);
+} catch (e) {
+  // ignore if already set
+}
 require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
-const uri = process.env.MONGODB_URI;
+const uri = process.env.DATABASE_URL;
 
-let client = null;
-let db = null;
+if (!uri) {
+  console.error("DATABASE_URL is not set in environment variables!");
+  process.exit(1);
+}
 
-const getClient = () => {
-  if (!client) {
-    if (!uri) {
-      console.warn("MONGODB_URI is not defined in environment variables.");
-    }
-    client = new MongoClient(uri || "", {
-      serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-      },
-    });
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
+
+let dbInstance = null;
+
+const connectDB = async () => {
+  if (dbInstance) return dbInstance;
+  try {
+    await client.connect();
+    dbInstance = client.db("flex_pulse");
+    console.log("MongoDB connection established successfully.");
+    return dbInstance;
+  } catch (error) {
+    console.error("Failed to connect to MongoDB Atlas:", error.message);
+    process.exit(1);
   }
-  return client;
 };
 
 const getDatabase = () => {
-  if (!db) {
-    const cli = getClient();
-    db = cli.db("flex_pulse");
+  if (!dbInstance) {
+    throw new Error("Database not initialized. Please call connectDB first.");
   }
-  return db;
+  return dbInstance;
 };
 
-const connectDB = async () => {
-  try {
-    const cli = getClient();
-    await cli.connect();
-    db = cli.db("flex_pulse");
-    console.log("MongoDB connection established successfully.");
-    return db;
-  } catch (error) {
-    console.error("MongoDB connection error:", error);
-    return getDatabase();
+const closeDB = async () => {
+  if (client) {
+    await client.close();
+    console.log("MongoDB connection closed.");
   }
 };
-
-const getUserCollection = () => getDatabase().collection("user");
-const getClassCollection = () => getDatabase().collection("allClasses");
-const getBookingCollection = () => getDatabase().collection("bookingClasses");
-const getFavoriteCollection = () => getDatabase().collection("favoriteClasses");
-const getForumPostCollection = () => getDatabase().collection("forumPost");
-const getTransactionCollection = () => getDatabase().collection("transactions");
-const getSubscriptionCollection = () => getDatabase().collection("subscriptions");
-const getTrainerApplicationCollection = () =>
-  getDatabase().collection("trainerApplications");
 
 module.exports = {
-  getClient,
   connectDB,
   getDatabase,
-  getUserCollection,
-  getClassCollection,
-  getBookingCollection,
-  getFavoriteCollection,
-  getForumPostCollection,
-  getTransactionCollection,
-  getSubscriptionCollection,
-  getTrainerApplicationCollection,
+  closeDB,
+  client,
 };
