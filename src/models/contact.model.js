@@ -1,6 +1,7 @@
 const { getDatabase } = require("../config/db");
 
 const getContactCollection = () => getDatabase().collection("contactMessages");
+const getTrialPassCollection = () => getDatabase().collection("trialPasses");
 
 const ContactModel = {
   createMessage: async (data) => {
