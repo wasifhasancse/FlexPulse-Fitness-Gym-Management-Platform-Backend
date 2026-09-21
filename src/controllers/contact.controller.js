@@ -3,6 +3,9 @@ const ContactModel = require("../models/contact.model");
 const submitContactMessage = async (req, res, next) => {
   try {
     const { name, email, phone, subject, message } = req.body;
+    if (!name || !email || !message) {
+      return res.status(400).json({ message: "Name, email, and message are required." });
+    }
 
     const result = await ContactModel.createMessage({
       name,
