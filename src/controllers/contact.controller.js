@@ -25,6 +25,31 @@ const submitContactMessage = async (req, res, next) => {
   }
 };
 
+const claimTrialPass = async (req, res, next) => {
+  try {
+    const { fullName, name, email, phone, preferredDate, preferredTime, fitnessGoal } = req.body;
+    const nameVal = fullName || name;
+    if (!nameVal || !email) {
+      return res.status(400).json({ message: "Full name and email are required." });
+    }
+
+    const pass = await ContactModel.createTrialPass({
+      fullName: nameVal,
+      email,
+      phone: phone || "",
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Congratulations! Your 1-Day VIP Trial Pass has been generated.",
+      passCode: pass.passCode,
+      pass,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitContactMessage,
 };
