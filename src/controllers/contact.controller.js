@@ -55,4 +55,5 @@ const claimTrialPass = async (req, res, next) => {
 
 module.exports = {
   submitContactMessage,
+  claimTrialPass,
 };
