@@ -37,6 +37,9 @@ const claimTrialPass = async (req, res, next) => {
       fullName: nameVal,
       email,
       phone: phone || "",
+      preferredDate: preferredDate || new Date().toISOString().split("T")[0],
+      preferredTime: preferredTime || "Morning (08:00 AM - 11:00 AM)",
+      fitnessGoal: fitnessGoal || "General Fitness & Health",
     });
 
     res.status(201).json({
