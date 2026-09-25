@@ -54,9 +54,12 @@ const updateTrainerRole = async (req, res, next) => {
   }
 };
 
+const ClassModel = require("../models/class.model");
+
 module.exports = {
   updateUserRole,
   blockUser,
   getAllUsers,
   updateTrainerRole,
 };
+
