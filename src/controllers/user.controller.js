@@ -56,6 +56,18 @@ const updateTrainerRole = async (req, res, next) => {
 
 const ClassModel = require("../models/class.model");
 
+// get public trainers with their profile info and classes
+const getPublicTrainers = async (req, res, next) => {
+  try {
+    const trainers = await UserModel.findTrainers();
+    const trainerApplications = await TrainerApplicationModel.findAll();
+    const classes = await ClassModel.find({ status: "approved" });
+    res.json(trainers);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   updateUserRole,
   blockUser,
