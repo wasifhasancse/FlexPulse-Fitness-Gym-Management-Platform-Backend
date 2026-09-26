@@ -62,7 +62,36 @@ const getPublicTrainers = async (req, res, next) => {
     const trainers = await UserModel.findTrainers();
     const trainerApplications = await TrainerApplicationModel.findAll();
     const classes = await ClassModel.find({ status: "approved" });
-    res.json(trainers);
+
+    const enrichedTrainers = trainers.map((trainer) => {
+      const app = trainerApplications.find(
+        (a) => String(a.userId) === String(trainer._id) || a.userEmail === trainer.email,
+      );
+      const trainerClasses = classes.filter(
+        (c) => String(c.authorId) === String(trainer._id) || c.authorEmail === trainer.email,
+      );
+
+      return {
+        _id: trainer._id,
+        name: trainer.name || app?.userName || "FlexPulse Coach",
+        email: trainer.email,
+        image: trainer.image || null,
+        role: trainer.role,
+        bio: app?.bio || "Certified elite fitness coach dedicated to helping members achieve peak athletic performance and strength.",
+        specialty: app?.specialty || (trainerClasses[0]?.category || "General Strength & Conditioning"),
+        experience: app?.experience || "4+",
+        classesCount: trainerClasses.length,
+        classes: trainerClasses.map((cls) => ({
+          _id: cls._id,
+          className: cls.className,
+          category: cls.category,
+          price: cls.price,
+          image: cls.image,
+        })),
+      };
+    });
+
+    res.json(enrichedTrainers);
   } catch (error) {
     next(error);
   }
@@ -73,5 +102,5 @@ module.exports = {
   blockUser,
   getAllUsers,
   updateTrainerRole,
+  getPublicTrainers,
 };
-
