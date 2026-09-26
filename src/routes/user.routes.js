@@ -12,5 +12,6 @@ router.patch(
   adminVerify,
   userController.updateTrainerRole,
 );
+router.get("/trainers", userController.getPublicTrainers);
 
 module.exports = router;
