@@ -7,10 +7,10 @@ try {
 require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
-const uri = process.env.DATABASE_URL;
+const uri = process.env.DATABASE_URL || process.env.MONGODB_URI;
 
 if (!uri) {
-  console.error("DATABASE_URL is not set in environment variables!");
+  console.error("DATABASE_URL or MONGODB_URI is not set in environment variables!");
   process.exit(1);
 }
 
@@ -44,6 +44,16 @@ const getDatabase = () => {
   return dbInstance;
 };
 
+const getUserCollection = () => getDatabase().collection("user");
+const getClassCollection = () => getDatabase().collection("allClasses");
+const getBookingCollection = () => getDatabase().collection("bookingClasses");
+const getFavoriteCollection = () => getDatabase().collection("favoriteClasses");
+const getForumPostCollection = () => getDatabase().collection("forumPost");
+const getTransactionCollection = () => getDatabase().collection("transactions");
+const getSubscriptionCollection = () => getDatabase().collection("subscriptions");
+const getTrainerApplicationCollection = () =>
+  getDatabase().collection("trainerApplications");
+
 const closeDB = async () => {
   if (client) {
     await client.close();
@@ -54,6 +64,14 @@ const closeDB = async () => {
 module.exports = {
   connectDB,
   getDatabase,
+  getUserCollection,
+  getClassCollection,
+  getBookingCollection,
+  getFavoriteCollection,
+  getForumPostCollection,
+  getTransactionCollection,
+  getSubscriptionCollection,
+  getTrainerApplicationCollection,
   closeDB,
   client,
 };
