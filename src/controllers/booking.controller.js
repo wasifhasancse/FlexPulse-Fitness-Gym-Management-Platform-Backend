@@ -73,8 +73,39 @@ const checkBooking = async (req, res, next) => {
   }
 };
 
+// update subscription / auto-renew status
+const updateSubscriptionStatus = async (req, res, next) => {
+  try {
+    const { userId, classId, bookingId, autoRenew, subscriptionStatus } = req.body;
+    const { ObjectId } = require("mongodb");
+
+    let query = {};
+    if (bookingId && isValidObjectId(bookingId)) {
+      query._id = new ObjectId(bookingId);
+    } else if (userId && classId) {
+      query = { userId, classId };
+    } else {
+      return res.status(400).json({ error: "Missing identifier for booking" });
+    }
+
+    const update = {
+      $set: {
+        autoRenew: Boolean(autoRenew),
+        subscriptionStatus: subscriptionStatus || (autoRenew ? "active" : "cancelled_at_period_end"),
+        updatedAt: new Date(),
+      },
+    };
+
+    const result = await BookingModel.updateOne(query, update);
+    res.status(200).json({ message: "Subscription preference updated", result, autoRenew });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   bookClass,
   getUserBookings,
   checkBooking,
+  updateSubscriptionStatus,
 };
