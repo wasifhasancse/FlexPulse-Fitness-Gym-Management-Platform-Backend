@@ -3,12 +3,14 @@ const BookingModel = require("../models/booking.model");
 const { ensureUserActive } = require("../middlewares/userCheck.middleware");
 const { normalizeStatus } = require("../utils/helpers");
 
-// get all classes and filter by search and category
+// get all classes and filter by search, category, difficulty and sort
 const getAllClasses = async (req, res, next) => {
   try {
     const {
       search = "",
       category = "",
+      difficulty = "",
+      sort = "newest",
       page,
       limit,
       includeAll,
@@ -32,6 +34,21 @@ const getAllClasses = async (req, res, next) => {
       }
     }
 
+    if (difficulty && difficulty !== "All" && difficulty !== "All Levels") {
+      query.$or = [
+        { difficultyLevel: { $regex: `^${difficulty}$`, $options: "i" } },
+        { level: { $regex: `^${difficulty}$`, $options: "i" } },
+      ];
+    }
+
+    let sortOption = { createdAt: -1 };
+    if (sort === "price-asc") sortOption = { price: 1 };
+    else if (sort === "price-desc") sortOption = { price: -1 };
+    else if (sort === "duration-asc") sortOption = { duration: 1 };
+    else if (sort === "duration-desc") sortOption = { duration: -1 };
+    else if (sort === "popular") sortOption = { bookingCount: -1, createdAt: -1 };
+    else if (sort === "name-asc") sortOption = { className: 1 };
+
     const parsedPage = Number(page) || 1;
     const parsedLimit = Number(limit) || 0;
 
@@ -39,7 +56,7 @@ const getAllClasses = async (req, res, next) => {
       const skip = (parsedPage - 1) * parsedLimit;
       const [items, total] = await Promise.all([
         ClassModel.find(query, {
-          sort: { createdAt: -1 },
+          sort: sortOption,
           skip,
           limit: parsedLimit,
         }),
@@ -55,7 +72,7 @@ const getAllClasses = async (req, res, next) => {
       });
     }
 
-    const result = await ClassModel.find(query, { sort: { createdAt: -1 } });
+    const result = await ClassModel.find(query, { sort: sortOption });
     return res.send(result);
   } catch (error) {
     console.error("Error:", error.message);
