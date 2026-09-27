@@ -16,7 +16,7 @@ const ContactModel = {
   },
 
   createTrialPass: async (data) => {
-    const passCode = FP-${Math.random().toString(36).substring(2, 8).toUpperCase()};
+    const passCode = `FP-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const newPass = {
       ...data,
       passCode,
