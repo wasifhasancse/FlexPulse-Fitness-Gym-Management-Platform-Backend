@@ -31,6 +31,10 @@ const BookingModel = {
   countDocuments: async (query = {}) => {
     return getBookingCollection().countDocuments(query);
   },
+
+  updateOne: async (query, updateData) => {
+    return getBookingCollection().updateOne(query, updateData);
+  },
 };
 
 module.exports = BookingModel;
