@@ -1,15 +1,22 @@
 const express = require("express");
 const router = express.Router();
 const forumController = require("../controllers/forum.controller");
-const { verifyToken, adminVerify } = require("../middlewares/auth.middleware");
+const {
+  verifyToken,
+  adminVerify,
+  adminOrTrainerVerify,
+} = require("../middlewares/auth.middleware");
 
 // Post Routes
-router.post("/forumPost", forumController.createPost);
+router.post("/forumPost", verifyToken, forumController.createPost);
 router.get("/forumPost", forumController.getAllPosts);
 router.get("/my-forumPost", forumController.getMyPosts);
 router.get("/featured-forumPost", forumController.getFeaturedPosts);
 router.get("/forumPost/:id", forumController.getPostById);
-router.delete("/my-post/:id", forumController.deleteMyPost);
+router.put("/forumPost/:id", verifyToken, forumController.updatePost);
+router.patch("/forumPost/:id", verifyToken, forumController.updatePost);
+router.delete("/my-post/:id", verifyToken, forumController.deleteMyPost);
+router.delete("/forumPost/:id", verifyToken, forumController.deleteMyPost);
 
 // Post Likes/Dislikes
 router.post("/forum/like", forumController.togglePostLike);
@@ -27,11 +34,17 @@ router.post("/forum/reply", forumController.addReply);
 router.put("/forum/reply/:postId/:commentId/:replyId", forumController.updateReply);
 router.delete("/forum/reply/:postId/:commentId/:replyId", forumController.deleteReply);
 
-// Admin Forum Management
+// Forum Post Moderation (Trainers & Admins can approve/reject)
 router.patch(
   "/admin/forum-posts/:id",
   verifyToken,
-  adminVerify,
+  adminOrTrainerVerify,
+  forumController.updatePostStatusByAdmin,
+);
+router.patch(
+  "/forum-posts/:id/status",
+  verifyToken,
+  adminOrTrainerVerify,
   forumController.updatePostStatusByAdmin,
 );
 

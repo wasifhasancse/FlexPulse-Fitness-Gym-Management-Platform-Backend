@@ -11,6 +11,7 @@ const subscriptionRoutes = require("./subscription.routes");
 const trainerApplicationRoutes = require("./trainerApplication.routes");
 const statsRoutes = require("./stats.routes");
 const contactRoutes = require("./contact.routes");
+const testimonialRoutes = require("./testimonial.routes");
 
 // Mount all modular routes
 router.use(userRoutes);
@@ -23,5 +24,6 @@ router.use(subscriptionRoutes);
 router.use(trainerApplicationRoutes);
 router.use(statsRoutes);
 router.use(contactRoutes);
+router.use(testimonialRoutes);
 
 module.exports = router;

@@ -53,6 +53,7 @@ const getTransactionCollection = () => getDatabase().collection("transactions");
 const getSubscriptionCollection = () => getDatabase().collection("subscriptions");
 const getTrainerApplicationCollection = () =>
   getDatabase().collection("trainerApplications");
+const getTestimonialCollection = () => getDatabase().collection("testimonials");
 
 const closeDB = async () => {
   if (client) {
@@ -72,6 +73,7 @@ module.exports = {
   getTransactionCollection,
   getSubscriptionCollection,
   getTrainerApplicationCollection,
+  getTestimonialCollection,
   closeDB,
   client,
 };

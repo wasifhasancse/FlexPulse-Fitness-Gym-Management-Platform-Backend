@@ -3,22 +3,32 @@ const ForumPostModel = require("../models/forumPost.model");
 const { ensureUserActive } = require("../middlewares/userCheck.middleware");
 const { normalizeStatus, toObjectId } = require("../utils/helpers");
 
-// add a new forum post (auto-approve for trainer/admin)
+// add a new forum post (auto-approve for trainer/admin, pending for member)
 const createPost = async (req, res, next) => {
   try {
+    const userId = req.user?.id || req.body?.userId;
+    const userEmail = req.user?.email || req.body?.userEmail;
+
     const activeResult = await ensureUserActive(
-      { userId: req.body?.userId, email: req.body?.userEmail },
+      { userId, email: userEmail },
       res,
     );
     if (!activeResult.ok) return;
 
-    const role = req.body?.userRole || "member";
+    const role = (req.user?.role || req.body?.userRole || "member").toLowerCase();
     const autoApprove = role === "trainer" || role === "admin";
 
     const newPost = {
       ...req.body,
+      userId: userId || req.body?.userId,
+      userName: req.user?.name || req.body?.userName || "Athlete",
+      userEmail: userEmail || req.body?.userEmail,
+      userRole: role,
       createdAt: new Date(),
       status: autoApprove ? "approved" : "pending",
+      likes: [],
+      dislikes: [],
+      comments: [],
     };
     const result = await ForumPostModel.create(newPost);
     res.status(200).json(result);
@@ -518,27 +528,129 @@ const deleteReply = async (req, res, next) => {
   }
 };
 
-// delete a forum post by forumPost id
-const deleteMyPost = async (req, res, next) => {
+// edit/update a forum post with role-based permission
+const updatePost = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await ForumPostModel.deleteById(id);
-    res.send(result);
+    const post = await ForumPostModel.findById(id);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const userRole = (req.user?.role || req.body?.userRole || "member").toLowerCase();
+    const userId = req.user?.id || req.body?.userId;
+    const userEmail = req.user?.email || req.body?.userEmail;
+
+    const isAuthor =
+      (userId && String(post.userId) === String(userId)) ||
+      (userEmail && post.userEmail === userEmail);
+    const isAuthorMember =
+      post.userRole === "member" || !post.userRole;
+
+    let allowed = false;
+    if (userRole === "admin") {
+      allowed = true; // Admin can edit any role post
+    } else if (userRole === "trainer") {
+      // Trainer can edit any member post OR their own post
+      if (isAuthorMember || isAuthor) {
+        allowed = true;
+      }
+    } else if (userRole === "member") {
+      // Member can only edit their own post
+      if (isAuthor) {
+        allowed = true;
+      }
+    }
+
+    if (!allowed) {
+      return res.status(403).json({
+        message: "You are not authorized to edit this post",
+      });
+    }
+
+    const { title, description, category, image, readTime, tags } = req.body;
+    const updateDoc = {
+      updatedAt: new Date(),
+    };
+    if (title !== undefined) updateDoc.title = title;
+    if (description !== undefined) updateDoc.description = description;
+    if (category !== undefined) updateDoc.category = category;
+    if (image !== undefined) updateDoc.image = image;
+    if (readTime !== undefined) updateDoc.readTime = readTime;
+    if (tags !== undefined) updateDoc.tags = tags;
+
+    const result = await ForumPostModel.updateById(id, { $set: updateDoc });
+    res.status(200).json({ success: true, result });
   } catch (error) {
     next(error);
   }
 };
 
-// approve forum post by admin
+// delete a forum post with role-based permission
+const deleteMyPost = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const post = await ForumPostModel.findById(id);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const userRole = (req.user?.role || req.body?.userRole || req.query?.userRole || "").toLowerCase();
+    const userId = req.user?.id || req.body?.userId || req.query?.userId;
+    const userEmail = req.user?.email || req.body?.userEmail || req.query?.userEmail;
+
+    if (userRole || userId || userEmail) {
+      const isAuthor =
+        (userId && String(post.userId) === String(userId)) ||
+        (userEmail && post.userEmail === userEmail);
+      const isAuthorMember =
+        post.userRole === "member" || !post.userRole;
+
+      let allowed = false;
+      if (userRole === "admin") {
+        allowed = true; // Admin can delete any role post
+      } else if (userRole === "trainer") {
+        // Trainer can delete any member post OR their own post
+        if (isAuthorMember || isAuthor) {
+          allowed = true;
+        }
+      } else if (userRole === "member") {
+        // Member can only delete their own post
+        if (isAuthor) {
+          allowed = true;
+        }
+      }
+
+      if (!allowed) {
+        return res.status(403).json({
+          message: "You are not authorized to delete this post",
+        });
+      }
+    }
+
+    const result = await ForumPostModel.deleteById(id);
+    res.status(200).json({ success: true, result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// approve / reject forum post by admin or trainer
 const updatePostStatusByAdmin = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status = "approved" } = req.body;
+    const userRole = (req.user?.role || "admin").toLowerCase();
+
+    if (userRole !== "admin" && userRole !== "trainer") {
+      return res.status(403).json({ message: "Only trainers and admins can moderate posts" });
+    }
 
     const result = await ForumPostModel.updateById(id, {
       $set: {
         status: normalizeStatus(status),
         updatedAt: new Date(),
+        moderatedBy: req.user?.name || req.user?.email || userRole,
       },
     });
     res.send(result);
@@ -563,6 +675,7 @@ module.exports = {
   addReply,
   updateReply,
   deleteReply,
+  updatePost,
   deleteMyPost,
   updatePostStatusByAdmin,
 };
